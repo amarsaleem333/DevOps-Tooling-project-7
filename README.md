@@ -1,16 +1,14 @@
-# DevOps-Tooling-project-7
-
 # DevOps Tooling Website Solution (LAMP Stack with Remote Database & NFS Storage)
 
 ## Project Overview
-This project implements a robust, stateless web solution for a DevOps team. By separating the application tier (Apache Web Servers) from the data storage layer (Shared NFS Server) and database layer (Remote MySQL), we ensure data integrity, high availability, and the ability to scale web servers horizontally with ease[cite: 1, 3].
+This project implements a robust, stateless web solution for a DevOps team. By separating the application tier (Apache Web Servers) from the data storage layer (Shared NFS Server) and database layer (Remote MySQL), we ensure data integrity, high availability, and the ability to scale web servers horizontally with ease.
 
 ---
 
 ## Architecture Diagram & Infrastructure Breakdown
-1. **NFS Server**: RHEL 8 EC2 Instance providing shared network file storage for application code and web server logs[cite: 1, 3].
-2. **Database Server**: RHEL 8 EC2 Instance running MySQL DBMS[cite: 1, 2].
-3. **Web Servers**: 3 stateless RHEL 8 EC2 Instances running Apache (HTTPD) and PHP 7.4, pulling shared files simultaneously from the NFS server[cite: 1, 3].
+1. **NFS Server**: RHEL 8 EC2 Instance providing shared network file storage for application code and web server logs.
+2. **Database Server**: RHEL 8 EC2 Instance running MySQL DBMS.
+3. **Web Servers**: 3 stateless RHEL 8 EC2 Instances running Apache (HTTPD) and PHP 7.4, pulling shared files simultaneously from the NFS server.
 
 ---
 
@@ -33,15 +31,12 @@ This project implements a robust, stateless web solution for a DevOps team. By s
    sudo systemctl start nfs-server.service
    sudo systemctl enable nfs-server.service
    sudo systemctl status nfs-server.service
-
 Network & Permissions Setup:
-Export the mounts for your Web Servers’ subnet CIDR. To find this, check your EC2 details in the AWS web console, locate the 'Networking' tab, and open the Subnet link:  
-DOCX
+Export the mounts for your Web Servers’ subnet CIDR. To find this, check your EC2 details in the AWS web console, locate the 'Networking' tab, and open the Subnet link:
 
-![main instruction.docx](main instruction.docx)
+![AWS Subnet CIDR Setup](main instruction.docx)
 
-Set up permissions that allow your Web servers to read, write, and execute files on NFS:  
-DOCX
+Set up permissions that allow your Web servers to read, write, and execute files on NFS:
 
 Bash
 sudo chown -R nobody: /mnt/apps
@@ -51,44 +46,40 @@ sudo chmod -R 777 /mnt/apps
 sudo chmod -R 777 /mnt/logs
 sudo chmod -R 777 /mnt/opt
 sudo systemctl restart nfs-server.service
-Configure access to NFS for clients within the same subnet:  
-DOCX
+Configure access to NFS for clients within the same subnet:
 
 Bash
 sudo vi /etc/exports
-Add the following entries (replace <Subnet-CIDR> with your actual subnet CIDR, e.g., 172.31.32.0/20):  
-DOCX
+Add the following entries (replace <Subnet-CIDR> with your actual subnet CIDR, e.g., 172.31.32.0/20):
 
 Plaintext
 /mnt/apps <Subnet-CIDR>(rw,sync,no_all_squash,no_root_squash)
 /mnt/logs <Subnet-CIDR>(rw,sync,no_all_squash,no_root_squash)
 /mnt/opt <Subnet-CIDR>(rw,sync,no_all_squash,no_root_squash)
-Apply the changes[cite: 1]:
+Apply the changes:
 
 Bash
 sudo exportfs -arv
 Firewall & Security Groups Entry:
-Check which port is used by NFS and open it using Security Groups by adding a new Inbound Rule[cite: 1]:
+Check which port is used by NFS and open it using Security Groups by adding a new Inbound Rule:
 
 Bash
 rpcinfo -p | grep nfs
-![step 2 103.txt](step 2 103.txt)
+![NFS Port Check](step 2 103.txt)
 
-⚠️ Important Note: In order for the NFS server to be accessible from your client, you must open the following inbound ports: TCP 2049, UDP 2049, TCP 111, and UDP 111[cite: 1].
+⚠️ Important Note: In order for the NFS server to be accessible from your client, you must open the following inbound ports: TCP 2049, UDP 2049, TCP 111, and UDP 111.
 
-![step3 for three web server.txt](step3 for three web server.txt)
+![NFS AWS Inbound Security Group Rules](step3 for three web server.txt)
 
 Step 2: Configure the Database Server
-Connect to your Database Server and install MySQL:  
-TXT
+Connect to your Database Server and install MySQL:
 
 Bash
 sudo yum update -y
 sudo yum install mysql-server -y
 sudo systemctl start mysqld
 sudo systemctl enable mysqld
-Log into MySQL as root and run the following queries to configure the database and user permissions:  
-TXT
+Log into MySQL as root and run the following queries to configure the database and user permissions:
 
 Bash
 sudo mysql
@@ -105,65 +96,53 @@ GRANT ALL PRIVILEGES ON tooling.* TO 'webaccess'@'172.31.16.0/255.255.240.0';
 -- Flush privileges to apply changes and exit
 FLUSH PRIVILEGES;
 EXIT;
-Configure MySQL to listen to remote connections by opening the configuration file:  
-TXT
+Configure MySQL to listen to remote connections by opening the configuration file:
 
 Bash
 sudo vi /etc/my.cnf
-Find the bind-address line and change it to 0.0.0.0 or comment it out:  
-TXT
+Find the bind-address line and change it to 0.0.0.0 or comment it out:
 
 Plaintext
 bind-address = 0.0.0.0
-Restart the service to apply changes:  
-TXT
+Restart the service to apply changes:
 
 Bash
 sudo systemctl restart mysqld
-Note: Ensure the DB Server's AWS Security Group has an inbound rule allowing TCP Port 3306 from your Web Server subnet.  
-TXT
+Note: Ensure the DB Server's AWS Security Group has an inbound rule allowing TCP Port 3306 from your Web Server subnet.
 
 Step 3: Prepare and Configure the Web Servers
-Note: These steps must be performed on all three identical Web Servers to maintain a stateless architecture.  
-TXT
+Note: These steps must be performed on all three identical Web Servers to maintain a stateless architecture.
 
-Install the NFS client utilities:  
-TXT
+Install the NFS client utilities:
 
 Bash
 sudo yum update -y
 sudo yum install nfs-utils nfs4-acl-tools -y
-Create the target directory and mount the NFS server's shared application export to /var/www:  
-TXT
+Create the target directory and mount the NFS server's shared application export to /var/www:
 
 Bash
 sudo mkdir -p /var/www
 sudo mount -t nfs -o rw,nosuid 172.31.17.253:/mnt/apps /var/www
-Create the Apache log directory and mount it to the NFS server's log export:  
-TXT
+Create the Apache log directory and mount it to the NFS server's log export:
 
 Bash
 sudo mkdir -p /var/log/httpd
 sudo mount -t nfs -o rw,nosuid 172.31.17.253:/mnt/logs /var/log/httpd
-Make the mounts permanent so they persist after a reboot:  
-TXT
+Make the mounts permanent so they persist after a reboot:
 
 Bash
 sudo vi /etc/fstab
-Add these two lines at the very bottom of the file:  
-TXT
+Add these two lines at the very bottom of the file:
 
 Plaintext
 172.31.17.253:/mnt/apps /var/www nfs defaults 0 0
 172.31.17.253:/mnt/logs /var/log/httpd nfs defaults 0 0
-Verify they mount correctly:  
-TXT
+Verify they mount correctly:
 
 Bash
 sudo mount -a
 df -h
-Install Apache, enable required repositories, and install PHP 7.4 along with its extensions:  
-TXT
+Install Apache, enable required repositories, and install PHP 7.4 along with its extensions:
 
 Bash
 sudo yum install httpd -y
@@ -176,9 +155,7 @@ sudo systemctl start httpd && sudo systemctl enable httpd
 sudo systemctl start php-fpm && sudo systemctl enable php-fpm
 🛠️ Hard-Fought Fixes & Troubleshooting Highlights
 1. Fixing Apache Permission Controls (HTTP 403 Forbidden Errors)
-SELinux blocks Apache from reading NFS mounts by default. To open up access and make it permanent:  
-TXT
-+ 1
+SELinux blocks Apache from reading NFS mounts by default. To open up access and make it permanent:
 
 Bash
 # Allow Apache to execute memory processes (required for PHP-FPM to work)
@@ -190,23 +167,20 @@ sudo setenforce 0
 # Disable permanently on reboot
 sudo sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/sysconfig/selinux
 2. Code Ownership Adjustments
-Since /var/www is shared via NFS, ensure correct permissions are mapped across your infrastructure so Apache can safely parse the repository's html files:  
-TXT
+Since /var/www is shared via NFS, ensure correct permissions are mapped across your infrastructure so Apache can safely parse the repository's html files:
 
 Bash
 sudo chown -R apache:apache /var/www/html
 sudo chmod -R 755 /var/www/html
 3. Database Seeding & Admin Configuration
-Update your database credentials in /var/www/html/functions.php[cite: 1]. Apply the tooling-db.sql migration script[cite: 1]:
+Update your database credentials in /var/www/html/functions.php. Apply the tooling-db.sql migration script:
 
 Bash
 mysql -h <database-private-ip> -u webaccess -p tooling < tooling-db.sql
-Execute this insert query inside MySQL to provision your administrative user credentials[cite: 1]:
+Execute this insert query inside MySQL to provision your administrative user credentials:
 
 SQL
 INSERT INTO `users` (`id`, `username`, `password`, `email`, `user_type`, `status`) 
 VALUES (1, 'myuser', '5f4dcc3b5aa765d61d8327deb882cf99', 'user@mail.com', 'admin', '1');
 Verification
-Open your browser and navigate to http://<Web-Server-Public-IP-Address-or-Public-DNS-Name>/index.php[cite: 1]. You will be greeted by the tooling system login panel where you can successfully authenticate using myuser[cite: 1]!
-
-   
+Open your browser and navigate to http://<Web-Server-Public-IP-Address-or-Public-DNS-Name>/index.php. You will be greeted by the tooling system login panel where you can successfully authenticate using myuser!
